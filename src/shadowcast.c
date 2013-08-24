@@ -1,0 +1,210 @@
+#include <grid.h>
+#include <utility.h>
+
+#include <math.h>
+
+#define GRID_GET(G, A, B) grid_get((G), (data->swapped?data->signy*(B):data->signx*(A)), (data->swapped?data->signx*(A):data->signy*(B)))
+#define GRID_SET(G, A, B, V) grid_set((G), (data->swapped?data->signy*(B):data->signx*(A)), (data->swapped?data->signx*(A):data->signy*(B)), (V))
+
+static double dmin(double a, double b) {
+    return a<b?a:b;
+}
+
+static double dmax(double a, double b) {
+    return a>b?a:b;
+}
+
+typedef struct shadowcast_data_t {
+    grid *transparent;
+    grid *light;
+    int r;
+    double x0, y0;
+    double signx, signy;
+    int swapped;
+    double falloff;
+    double (*attenuation)(struct shadowcast_data_t*,double,double);
+} shadowcast_data;
+
+static double flat_attenuation(struct shadowcast_data_t *data, double x, double y) {
+    (void)data; (void)x; (void)y;
+    return 1.0;
+}
+
+static double radial_attenuation(struct shadowcast_data_t *data, double x, double y) {
+    double diffx = x+0.5 - data->x0;
+    double diffy = y+0.5 - data->y0;
+    double offset = 1.0/(1+data->falloff*data->r);
+    return dmax(0, (1.0/(1+data->falloff*sqrt(diffx*diffx + diffy*diffy))-offset)/(1-offset));
+}
+
+static void areasplit(double base, double slope, double *first, double *second) {
+    if(slope < 1.0-base) {
+         *first = 1.0-(base+0.5*slope);
+         *second = 1.0;
+    } else {
+        double top = base+slope;
+        double cut = (1.0-base)/slope;
+        double w0 = 1.0-base;
+        double h0 = cut;
+        double w1 = top-1.0;
+        double h1 = 1.0-cut;
+        *first = 0.5f*w0*h0;
+        *second = 1.0f-0.5f*w1*h1;
+    }
+}
+
+static void fill_line(
+    shadowcast_data *data, int height, double leftbase,
+    double leftslope, double rightbase, double rightslope
+)
+{
+    int ileft = floor(leftbase);
+    int iright = floor(rightbase);
+
+    double leftfirst, leftsecond, rightfirst, rightsecond;
+    areasplit(leftbase-ileft, leftslope, &leftfirst, &leftsecond);
+    areasplit(rightbase-iright, rightslope, &rightfirst, &rightsecond);
+
+    if(GRID_GET(data->transparent, ileft, height))
+        GRID_SET(data->light, ileft, height, GRID_GET(data->light, ileft, height) + leftfirst*data->attenuation(data, ileft, height));
+    if(GRID_GET(data->transparent, ileft+1, height))
+        GRID_SET(data->light, ileft+1, height, GRID_GET(data->light, ileft+1, height) + leftsecond*data->attenuation(data, ileft+1, height));
+    if(GRID_GET(data->transparent, iright, height))
+        GRID_SET(data->light, iright, height, GRID_GET(data->light, iright, height) - rightfirst*data->attenuation(data, iright, height));
+    if(GRID_GET(data->transparent, iright+1, height))
+        GRID_SET(data->light, iright+1, height, GRID_GET(data->light, iright+1, height) - rightsecond*data->attenuation(data, iright+1, height));
+
+    for(int i = ileft+2;i<=iright+1;++i)
+        if(GRID_GET(data->transparent, i, height))
+            GRID_SET(data->light, i, height, GRID_GET(data->light, i, height) + data->attenuation(data, i, height));
+}
+
+static void trace_cone(
+    shadowcast_data *data, int height, int max_height, double leftbase,
+    double leftslope, double rightbase, double rightslope
+)
+{
+    (void)leftslope;
+    if(height>max_height)
+        return;
+    int ileft = floor(leftbase);
+    int iright = floor(rightbase+rightslope);
+
+    double leftedge = leftbase;
+    double rightedge;
+
+    int i = ileft;
+
+    while(i<=iright) {
+        while(i<=iright && !GRID_GET(data->transparent, i, height)) { leftedge = ++i; }
+        rightedge = leftedge;
+        while(i<=iright && GRID_GET(data->transparent, i, height)) {rightedge = ++i; }
+
+        double newleftslope = (leftedge-data->x0)/(height-data->y0);
+        double rightfillslope = dmin((rightedge-data->x0)/(height-data->y0), rightslope);
+        double newrightslope = dmin((rightedge-data->x0)/(height+1-data->y0), rightslope);
+        double newrightbase = dmin(rightedge, rightbase + rightslope);
+
+        if(newleftslope < newrightslope)
+        {
+            fill_line(data, height, leftedge, newleftslope, dmin(rightedge, rightbase), rightfillslope);
+            if(newleftslope < newrightslope)
+                trace_cone(data, height+1, max_height, leftedge+newleftslope, newleftslope, newrightbase, newrightslope);
+        }
+    }
+}
+
+static void calc_fov_octant(shadowcast_data *data) {
+    double slope = 1;
+    int start = floor(data->y0)+1;
+    double fracy = start-data->y0;
+
+    if(!GRID_GET(data->transparent, floor(data->x0)+1, floor(data->y0)))
+        slope = dmin(slope, (1-(data->x0-floor(data->x0)))/(1-(data->y0-floor(data->y0))));
+    trace_cone(data, start, start+data->r, data->x0, 0, data->x0+slope*fracy, slope);
+}
+
+void shadowcast_impl(
+    grid *transparent, grid *light, double x0, double y0, int r,
+    double falloff, double (*attenuation)(struct shadowcast_data_t*,double,double)
+)
+{
+    if(!grid_get(transparent, x0, y0))
+        return;
+
+    double backup[] = {
+        grid_get(light, x0, y0), grid_get(light, x0+1, y0),
+        grid_get(light, x0-1, y0), grid_get(light, x0, y0+1),
+        grid_get(light, x0, y0-1)
+    };
+
+    shadowcast_data data = {transparent, light, r, 0, 0, 0, 0, 0, falloff, attenuation};
+
+    data.x0 = 1-x0; data.y0 = y0; data.signx = -1; data.signy = 1; data.swapped = 0;
+    calc_fov_octant(&data);
+
+    data.x0 = x0; data.y0 = 1-y0; data.signx = 1; data.signy = -1; data.swapped = 0;
+    calc_fov_octant(&data);
+
+    data.x0 = 1-x0; data.y0 = 1-y0; data.signx = -1; data.signy = -1; data.swapped = 0;
+    calc_fov_octant(&data);
+
+    data.x0 = y0; data.y0 = x0; data.signx = 1; data.signy = 1; data.swapped = 1;
+    calc_fov_octant(&data);
+
+    data.x0 = 1-y0; data.y0 = x0; data.signx = -1; data.signy = 1; data.swapped = 1;
+    calc_fov_octant(&data);
+
+    data.x0 = y0; data.y0 = 1-x0; data.signx = 1; data.signy = -1; data.swapped = 1;
+    calc_fov_octant(&data);
+
+    data.x0 = 1-y0; data.y0 = 1-x0; data.signx = -1; data.signy = -1; data.swapped = 1;
+    calc_fov_octant(&data);
+
+    data.x0 = x0; data.y0 = y0; data.signx = 1; data.signy = 1; data.swapped = 0;
+    calc_fov_octant(&data);
+
+    if(grid_get(transparent, x0, y0))
+        grid_set(light, x0, y0, backup[0]+data.attenuation(&data, floor(x0), floor(y0)));
+    if(grid_get(transparent, x0+1, y0))
+        grid_set(light, x0+1, y0, backup[1]+data.attenuation(&data, floor(x0)+1, floor(y0)));
+    if(grid_get(transparent, x0-1, y0))
+        grid_set(light, x0-1, y0, backup[2]+data.attenuation(&data, floor(x0)-1, floor(y0)));
+    if(grid_get(transparent, x0, y0+1))
+        grid_set(light, x0, y0+1, backup[3]+data.attenuation(&data, floor(x0), floor(y0)+1));
+    if(grid_get(transparent, x0, y0-1))
+        grid_set(light, x0, y0-1, backup[4]+data.attenuation(&data, floor(x0), floor(y0)-1));
+}
+
+void shadowcast(grid *transparent, grid *light, double x0, double y0, int r)
+{
+    shadowcast_impl(transparent, light, x0, y0, r, 0, flat_attenuation);
+}
+
+void attenuated_shadowcast(grid *transparent, grid *light, double x0, double y0, int r, double falloff)
+{
+    shadowcast_impl(transparent, light, x0, y0, r, falloff, radial_attenuation);
+}
+
+int shadowcast_lua(lua_State *L) {
+    check_userdata_type(L, 1, "grid");
+    check_userdata_type(L, 2, "grid");
+    int top = lua_gettop(L);
+    if(top<5) luaL_typerror(L, top, "number");
+    grid *transparent = lua_touserdata(L, 1);
+    grid *light = lua_touserdata(L, 2);
+    double x0 = lua_tonumber(L, 3);
+    double y0 = lua_tonumber(L, 4);
+    int r = lua_tointeger(L, 5);
+
+    if(top == 5)
+        shadowcast(transparent, light, x0, y0, r);
+    else
+        attenuated_shadowcast(transparent, light, x0, y0, r, lua_tonumber(L, 6));
+    return 0;
+}
+
+const luaL_Reg shadowcast_lib[] = {
+    {"shadowcast", shadowcast_lua},
+    {NULL, NULL}
+};
