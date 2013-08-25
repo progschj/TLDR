@@ -24,9 +24,15 @@ void grid_fill(grid *g, int x, int y, int width, int height, double v);
 
 void grid_jitter(grid *g, double amount);
 
-void grid_add(grid *g1, grid *g2);
+void grid_add_grid(grid *g1, grid *g2);
 
-void grid_mul(grid *g1, grid *g2);
+void grid_add_number(grid *g1, double value);
+
+void grid_mul_grid(grid *g1, grid *g2);
+
+void grid_mul_number(grid *g1, double value);
+
+void grid_clamp(grid *g1, double low, double high);
 
 void grid_destroy(grid g);
 

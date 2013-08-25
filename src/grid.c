@@ -54,7 +54,7 @@ void grid_jitter(grid *g, double amount) {
             g->data[x*g->height + y] += amount*(2.0*rand()/RAND_MAX-1);
 }
 
-void grid_add(grid *g1, grid *g2) {
+void grid_add_grid(grid *g1, grid *g2) {
     int x0 = clamp(g2->x0, g1->x0, g1->x0 + g1->width);
     int y0 = clamp(g2->y0, g1->y0, g1->y0 + g1->height);
     int x1 = clamp(g2->x0 + g2->width, g1->x0, g1->x0 + g1->width);
@@ -64,7 +64,17 @@ void grid_add(grid *g1, grid *g2) {
             grid_set(g1, x, y, grid_get(g1, x, y)+grid_get(g2, x, y));
 }
 
-void grid_mul(grid *g1, grid *g2) {
+void grid_add_number(grid *g1, double value) {
+    int x0 = g1->x0;
+    int y0 = g1->y0;
+    int x1 = g1->x0 + g1->width;
+    int y1 = g1->y0 + g1->height;
+    for(int x = x0;x<x1;++x)
+        for(int y = y0;y<y1;++y)
+            grid_set(g1, x, y, grid_get(g1, x, y)+value);
+}
+
+void grid_mul_grid(grid *g1, grid *g2) {
     int x0 = clamp(g2->x0, g1->x0, g1->x0 + g1->width);
     int y0 = clamp(g2->y0, g1->y0, g1->y0 + g1->height);
     int x1 = clamp(g2->x0 + g2->width, g1->x0, g1->x0 + g1->width);
@@ -72,6 +82,42 @@ void grid_mul(grid *g1, grid *g2) {
     for(int x = x0;x<x1;++x)
         for(int y = y0;y<y1;++y)
             grid_set(g1, x, y, grid_get(g1, x, y)*grid_get(g2, x, y));
+}
+
+void grid_mul_number(grid *g1, double value) {
+    int x0 = g1->x0;
+    int y0 = g1->y0;
+    int x1 = g1->x0 + g1->width;
+    int y1 = g1->y0 + g1->height;
+    for(int x = x0;x<x1;++x)
+        for(int y = y0;y<y1;++y)
+            grid_set(g1, x, y, grid_get(g1, x, y)*value);
+}
+
+void grid_assign_grid(grid *g1, grid *g2) {
+    int x0 = clamp(g2->x0, g1->x0, g1->x0 + g1->width);
+    int y0 = clamp(g2->y0, g1->y0, g1->y0 + g1->height);
+    int x1 = clamp(g2->x0 + g2->width, g1->x0, g1->x0 + g1->width);
+    int y1 = clamp(g2->y0 + g2->height, g1->y0, g1->y0 + g1->height);
+    for(int x = x0;x<x1;++x)
+        for(int y = y0;y<y1;++y)
+            grid_set(g1, x, y, grid_get(g2, x, y));
+}
+
+double clampd(double x, double low, double high) {
+    if(x<low) return low;
+    else if(x>high) return high;
+    else return x;
+}
+
+void grid_clamp(grid *g1, double low, double high) {
+    int x0 = g1->x0;
+    int y0 = g1->y0;
+    int x1 = g1->x0 + g1->width;
+    int y1 = g1->y0 + g1->height;
+    for(int x = x0;x<x1;++x)
+        for(int y = y0;y<y1;++y)
+            grid_set(g1, x, y, clampd(grid_get(g1, x, y), low, high));
 }
 
 void grid_destroy(grid g) {
@@ -96,6 +142,16 @@ static int grid_offset_lua(lua_State *L) {
     grid *g = lua_touserdata(L, 1);
     lua_pushinteger(L, g->x0);
     lua_pushinteger(L, g->y0);
+    return 2;
+}
+
+static int grid_set_offset_lua(lua_State *L) {
+    int top = lua_gettop(L);
+    if(top<1) typerror(L, 1, "grid");
+    if(top<3) typerror(L, top+1, "number");
+    grid *g = lua_touserdata(L, 1);
+    g->x0 = lua_tonumber(L, 2);
+    g->y0 = lua_tonumber(L, 3);
     return 2;
 }
 
@@ -137,30 +193,56 @@ static int grid_jitter_lua(lua_State *L) {
     int top = lua_gettop(L);
     if(top<1) return typerror(L, 1, "grid");
     if(top<2 || !lua_isnumber(L, 2)) return typerror(L, 2, "number");
-
     grid *g = lua_touserdata(L, 1);
     double amount = lua_tonumber(L, 2);
     grid_jitter(g, amount);
     return 0;
 }
-
 static int grid_add_lua(lua_State *L) {
     int top = lua_gettop(L);
     if(top<1) return typerror(L, 1, "grid");
-    check_userdata_type(L, 2, "grid");
+    if(top<2) return typerror(L, 2, "number or grid");
     grid *g1 = lua_touserdata(L, 1);
-    grid *g2 = lua_touserdata(L, 2);
-    grid_add(g1, g2);
+    if(lua_isnumber(L, 2)) {
+        grid_add_number(g1, lua_tonumber(L, 2));
+    } else {
+        check_userdata_type(L, 2, "grid");
+        grid *g2 = lua_touserdata(L, 2);
+        grid_add_grid(g1, g2);
+    }
     return 0;
 }
 
 static int grid_mul_lua(lua_State *L) {
     int top = lua_gettop(L);
     if(top<1) return typerror(L, 1, "grid");
+    if(top<2) return typerror(L, 2, "number or grid");
+    grid *g1 = lua_touserdata(L, 1);
+    if(lua_isnumber(L, 2)) {
+        grid_mul_number(g1, lua_tonumber(L, 2));
+    } else {
+        check_userdata_type(L, 2, "grid");
+        grid *g2 = lua_touserdata(L, 2);
+        grid_mul_grid(g1, g2);
+    }
+    return 0;
+}
+
+static int grid_assign_lua(lua_State *L) {
+    int top = lua_gettop(L);
+    if(top<1) return typerror(L, 1, "grid");
     check_userdata_type(L, 2, "grid");
     grid *g1 = lua_touserdata(L, 1);
     grid *g2 = lua_touserdata(L, 2);
-    grid_mul(g1, g2);
+    grid_assign_grid(g1, g2);
+    return 0;
+}
+
+static int grid_clamp_lua(lua_State *L) {
+    int top = lua_gettop(L);
+    if(top<1) return typerror(L, 1, "grid");
+    grid *g1 = lua_touserdata(L, 1);
+    grid_clamp(g1, lua_tonumber(L, 2), lua_tonumber(L, 3));
     return 0;
 }
 
@@ -210,6 +292,10 @@ static void grid_create_metatable_lua(lua_State *L) {
     lua_pushcfunction(L, grid_offset_lua);
     lua_rawset(L, -3);
 
+    lua_pushstring(L, "set_offset");
+    lua_pushcfunction(L, grid_set_offset_lua);
+    lua_rawset(L, -3);
+
     lua_pushstring(L, "get");
     lua_pushcfunction(L, grid_get_lua);
     lua_rawset(L, -3);
@@ -232,6 +318,14 @@ static void grid_create_metatable_lua(lua_State *L) {
 
     lua_pushstring(L, "mul");
     lua_pushcfunction(L, grid_mul_lua);
+    lua_rawset(L, -3);
+
+    lua_pushstring(L, "assign");
+    lua_pushcfunction(L, grid_assign_lua);
+    lua_rawset(L, -3);
+
+    lua_pushstring(L, "clamp");
+    lua_pushcfunction(L, grid_clamp_lua);
     lua_rawset(L, -3);
 
     lua_pushstring(L, "contains");

@@ -1,5 +1,5 @@
-width = 80
-height = 60
+width = 160
+height = 120
 font = image.load("fonts/terminal8x8_gs_ro_modified.png")
 fontwidth, fontheight = font:size()
 tilewidth = fontwidth/16
@@ -41,17 +41,20 @@ function(key)
     end
 end)
 
+light:fill(0.0)
 
 while not close do
     window:poll_events()
-    light:fill(0.1)
-
-    fov.shadowcast(walls, light, mouse.x, mouse.y, 40, 0.1, 0.9)
+    
+    fov.shadowcast(walls, light, mouse.x, mouse.y, 40, 0.1, 0.01)
+    light:add(0.1)    
     map:fill_indexed(walls, light, {
         {string.byte(" "), 0xFFFFFF, 0x000000},
         {string.byte(" "), 0xFFFFFF, 0xFFFFFF}
     });
-
+    light:add(-0.1)
+    light:mul(0.99)
+    
     map:draw()
     window:swap_buffers()
 end
