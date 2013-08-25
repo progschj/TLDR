@@ -54,6 +54,25 @@ void grid_jitter(grid *g, double amount) {
             g->data[x*g->height + y] += amount*(2.0*rand()/RAND_MAX-1);
 }
 
+void grid_add(grid *g1, grid *g2) {
+    int x0 = clamp(g2->x0, g1->x0, g1->x0 + g1->width);
+    int y0 = clamp(g2->y0, g1->y0, g1->y0 + g1->height);
+    int x1 = clamp(g2->x0 + g2->width, g1->x0, g1->x0 + g1->width);
+    int y1 = clamp(g2->y0 + g2->height, g1->y0, g1->y0 + g1->height);
+    for(int x = x0;x<x1;++x)
+        for(int y = y0;y<y1;++y)
+            grid_set(g1, x, y, grid_get(g1, x, y)+grid_get(g2, x, y));
+}
+
+void grid_mul(grid *g1, grid *g2) {
+    int x0 = clamp(g2->x0, g1->x0, g1->x0 + g1->width);
+    int y0 = clamp(g2->y0, g1->y0, g1->y0 + g1->height);
+    int x1 = clamp(g2->x0 + g2->width, g1->x0, g1->x0 + g1->width);
+    int y1 = clamp(g2->y0 + g2->height, g1->y0, g1->y0 + g1->height);
+    for(int x = x0;x<x1;++x)
+        for(int y = y0;y<y1;++y)
+            grid_set(g1, x, y, grid_get(g1, x, y)*grid_get(g2, x, y));
+}
 
 void grid_destroy(grid g) {
     free(g.data);
@@ -65,7 +84,7 @@ static int grid_destroy_lua(lua_State *L) {
 }
 
 static int grid_size_lua(lua_State *L) {
-    if(lua_gettop(L)<1) luaL_typerror(L, 1, "grid");
+    if(lua_gettop(L)<1) typerror(L, 1, "grid");
     grid *g = lua_touserdata(L, 1);
     lua_pushinteger(L, g->width);
     lua_pushinteger(L, g->height);
@@ -73,7 +92,7 @@ static int grid_size_lua(lua_State *L) {
 }
 
 static int grid_offset_lua(lua_State *L) {
-    if(lua_gettop(L)<1) luaL_typerror(L, 1, "grid");
+    if(lua_gettop(L)<1) typerror(L, 1, "grid");
     grid *g = lua_touserdata(L, 1);
     lua_pushinteger(L, g->x0);
     lua_pushinteger(L, g->y0);
@@ -82,10 +101,10 @@ static int grid_offset_lua(lua_State *L) {
 
 static int grid_set_lua(lua_State *L) {
     int top = lua_gettop(L);
-    if(top<1) return luaL_typerror(L, 1, "grid");
-    if(top<2 || !lua_isnumber(L, 2)) return luaL_typerror(L, 2, "number");
-    if(top<3 || !lua_isnumber(L, 3)) return luaL_typerror(L, 3, "number");
-    if(top<4 || !lua_isnumber(L, 4)) return luaL_typerror(L, 4, "number");
+    if(top<1) return typerror(L, 1, "grid");
+    if(top<2 || !lua_isnumber(L, 2)) return typerror(L, 2, "number");
+    if(top<3 || !lua_isnumber(L, 3)) return typerror(L, 3, "number");
+    if(top<4 || !lua_isnumber(L, 4)) return typerror(L, 4, "number");
     grid *g = lua_touserdata(L, 1);
     int x = lua_tointeger(L, 2);
     int y = lua_tointeger(L, 3);
@@ -96,28 +115,28 @@ static int grid_set_lua(lua_State *L) {
 
 static int grid_fill_lua(lua_State *L) {
     int top = lua_gettop(L);
-    if(top<1) return luaL_typerror(L, 1, "grid");
-    if(top<2 || !lua_isnumber(L, 2)) return luaL_typerror(L, 2, "number");
+    if(top<1) return typerror(L, 1, "grid");
+    if(top<2 || !lua_isnumber(L, 2)) return typerror(L, 2, "number");
     if(top>2) {
-        if(top<3 || !lua_isnumber(L, 3)) return luaL_typerror(L, 3, "number");
-        if(top<4 || !lua_isnumber(L, 4)) return luaL_typerror(L, 4, "number");
-        if(top<5 || !lua_isnumber(L, 5)) return luaL_typerror(L, 5, "number");
-        if(top<6 || !lua_isnumber(L, 6)) return luaL_typerror(L, 6, "number");
+        if(top<3 || !lua_isnumber(L, 3)) return typerror(L, 3, "number");
+        if(top<4 || !lua_isnumber(L, 4)) return typerror(L, 4, "number");
+        if(top<5 || !lua_isnumber(L, 5)) return typerror(L, 5, "number");
+        if(top<6 || !lua_isnumber(L, 6)) return typerror(L, 6, "number");
     }
     grid *g = lua_touserdata(L, 1);
     int x = top==2?g->x0:lua_tointeger(L, 2);
     int y = top==2?g->y0:lua_tointeger(L, 3);
     int width = top==2?g->width:lua_tointeger(L, 4);
     int height = top==2?g->height:lua_tointeger(L, 5);
-    int value = top==2?lua_tonumber(L, 2):lua_tonumber(L, 6);
+    double value = top==2?lua_tonumber(L, 2):lua_tonumber(L, 6);
     grid_fill(g, x, y, width, height, value);
     return 0;
 }
 
 static int grid_jitter_lua(lua_State *L) {
     int top = lua_gettop(L);
-    if(top<1) return luaL_typerror(L, 1, "grid");
-    if(top<2 || !lua_isnumber(L, 2)) return luaL_typerror(L, 2, "number");
+    if(top<1) return typerror(L, 1, "grid");
+    if(top<2 || !lua_isnumber(L, 2)) return typerror(L, 2, "number");
 
     grid *g = lua_touserdata(L, 1);
     double amount = lua_tonumber(L, 2);
@@ -125,11 +144,31 @@ static int grid_jitter_lua(lua_State *L) {
     return 0;
 }
 
+static int grid_add_lua(lua_State *L) {
+    int top = lua_gettop(L);
+    if(top<1) return typerror(L, 1, "grid");
+    check_userdata_type(L, 2, "grid");
+    grid *g1 = lua_touserdata(L, 1);
+    grid *g2 = lua_touserdata(L, 2);
+    grid_add(g1, g2);
+    return 0;
+}
+
+static int grid_mul_lua(lua_State *L) {
+    int top = lua_gettop(L);
+    if(top<1) return typerror(L, 1, "grid");
+    check_userdata_type(L, 2, "grid");
+    grid *g1 = lua_touserdata(L, 1);
+    grid *g2 = lua_touserdata(L, 2);
+    grid_mul(g1, g2);
+    return 0;
+}
+
 static int grid_get_lua(lua_State *L) {
     int top = lua_gettop(L);
-    if(top<1) return luaL_typerror(L, 1, "grid");
-    if(top<2 || !lua_isnumber(L, 2)) return luaL_typerror(L, 2, "number");
-    if(top<3 || !lua_isnumber(L, 3)) return luaL_typerror(L, 3, "number");
+    if(top<1) return typerror(L, 1, "grid");
+    if(top<2 || !lua_isnumber(L, 2)) return typerror(L, 2, "number");
+    if(top<3 || !lua_isnumber(L, 3)) return typerror(L, 3, "number");
     grid *g = lua_touserdata(L, 1);
     int x = lua_tointeger(L, 2);
     int y = lua_tointeger(L, 3);
@@ -139,9 +178,9 @@ static int grid_get_lua(lua_State *L) {
 
 static int grid_contains_lua(lua_State *L) {
     int top = lua_gettop(L);
-    if(top<1) return luaL_typerror(L, 1, "grid");
-    if(top<2 || !lua_isnumber(L, 2)) return luaL_typerror(L, 2, "number");
-    if(top<3 || !lua_isnumber(L, 3)) return luaL_typerror(L, 3, "number");
+    if(top<1) return typerror(L, 1, "grid");
+    if(top<2 || !lua_isnumber(L, 2)) return typerror(L, 2, "number");
+    if(top<3 || !lua_isnumber(L, 3)) return typerror(L, 3, "number");
     grid *g = lua_touserdata(L, 1);
     int x = lua_tointeger(L, 2);
     int y = lua_tointeger(L, 3);
@@ -187,6 +226,14 @@ static void grid_create_metatable_lua(lua_State *L) {
     lua_pushcfunction(L, grid_jitter_lua);
     lua_rawset(L, -3);
 
+    lua_pushstring(L, "add");
+    lua_pushcfunction(L, grid_add_lua);
+    lua_rawset(L, -3);
+
+    lua_pushstring(L, "mul");
+    lua_pushcfunction(L, grid_mul_lua);
+    lua_rawset(L, -3);
+
     lua_pushstring(L, "contains");
     lua_pushcfunction(L, grid_contains_lua);
     lua_rawset(L, -3);
@@ -196,10 +243,10 @@ static void grid_create_metatable_lua(lua_State *L) {
 
 static int grid_create_lua(lua_State *L) {
     int top = lua_gettop(L);
-    if(top<1 || !lua_isnumber(L, 1)) return luaL_typerror(L, 1, "number");
-    if(top<2 || !lua_isnumber(L, 2)) return luaL_typerror(L, 2, "number");
-    if(top<3 || !lua_isnumber(L, 3)) return luaL_typerror(L, 3, "number");
-    if(top<4 || !lua_isnumber(L, 4)) return luaL_typerror(L, 4, "number");
+    if(top<1 || !lua_isnumber(L, 1)) return typerror(L, 1, "number");
+    if(top<2 || !lua_isnumber(L, 2)) return typerror(L, 2, "number");
+    if(top<3 || !lua_isnumber(L, 3)) return typerror(L, 3, "number");
+    if(top<4 || !lua_isnumber(L, 4)) return typerror(L, 4, "number");
     grid *g = lua_newuserdata(L, sizeof(grid));
     *g = grid_create(lua_tointeger(L, 1), lua_tointeger(L, 2), lua_tointeger(L, 3), lua_tointeger(L, 4));
     grid_create_metatable_lua(L);

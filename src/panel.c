@@ -12,6 +12,7 @@
 
 #include <utility.h>
 #include <image.h>
+#include <grid.h>
 
 static GLuint texture_create(image img) {
     GLuint tex;
@@ -271,6 +272,68 @@ void panel_fill_rect_tile_fg(panel *p, int x0, int y0, int width, int height, in
     }
 }
 
+void panel_fill_indexed(panel *p, grid *g, const int (*tilespec)[3]) {
+    int x0 = clamp(g->x0, 0, p->width);
+    int x1 = clamp(g->x0+g->width, 0, p->width);
+    int y0 = clamp(g->y0, 0, p->height);
+    int y1 = clamp(g->y0+g->height, 0, p->height);
+    for(int x = x0;x<x1;++x) {
+        for(int y = y0;y<y1;++y) {
+            int index = x + p->width*y;
+            int k = grid_get(g, x, y);
+            int tile = tilespec[k][0];
+            int fg = tilespec[k][1];
+            int bg = tilespec[k][2];
+            if(tile >= 0) {
+                p->foreground[4*index + 3] = 16*((tile&0xFF)%16);
+                p->background[4*index + 3] = 16*((tile&0xFF)/16);
+            }
+            if(fg >= 0) {
+                p->foreground[4*index + 0] = (fg>>16) & 0xFF;
+                p->foreground[4*index + 1] = (fg>> 8) & 0xFF;
+                p->foreground[4*index + 2] = (fg>> 0) & 0xFF;
+            }
+            if(bg >= 0) {
+                p->background[4*index + 0] = (bg>>16) & 0xFF;
+                p->background[4*index + 1] = (bg>> 8) & 0xFF;
+                p->background[4*index + 2] = (bg>> 0) & 0xFF;
+            }
+        }
+    }
+}
+
+void panel_fill_indexed_mul(panel *p, grid *g, grid *f, const int (*tilespec)[3]) {
+    int x0 = clamp(g->x0, 0, p->width);
+    int x1 = clamp(g->x0+g->width, 0, p->width);
+    int y0 = clamp(g->y0, 0, p->height);
+    int y1 = clamp(g->y0+g->height, 0, p->height);
+    for(int x = x0;x<x1;++x) {
+        for(int y = y0;y<y1;++y) {
+            int index = x + p->width*y;
+            int k = grid_get(g, x, y);
+            double factor = grid_get(f, x, y);
+            int tile = tilespec[k][0];
+            int fg = tilespec[k][1];
+            int bg = tilespec[k][2];
+            if(tile >= 0) {
+                p->foreground[4*index + 3] = 16*((tile&0xFF)%16);
+                p->background[4*index + 3] = 16*((tile&0xFF)/16);
+            }
+            if(fg >= 0) {
+                p->foreground[4*index + 0] = clamp(factor*((fg>>16) & 0xFF), 0, 0xFF);
+                p->foreground[4*index + 1] = clamp(factor*((fg>> 8) & 0xFF), 0, 0xFF);
+                p->foreground[4*index + 2] = clamp(factor*((fg>> 0) & 0xFF), 0, 0xFF);
+            }
+            if(bg >= 0) {
+                p->background[4*index + 0] = clamp(factor*((bg>>16) & 0xFF), 0, 0xFF);
+                p->background[4*index + 1] = clamp(factor*((bg>> 8) & 0xFF), 0, 0xFF);
+                p->background[4*index + 2] = clamp(factor*((bg>> 0) & 0xFF), 0, 0xFF);
+            }
+        }
+    }    
+}
+
+
 void panel_print(panel *p, int x0, int y0, const char *str) {
     int fg = -1, bg = -1;
     for(int x = x0, y = y0;*str != '\0';++str) {
@@ -334,7 +397,7 @@ static int panel_destroy_lua(lua_State *L) {
 }
 
 static int panel_size_lua(lua_State *L) {
-    if(lua_gettop(L)<1) luaL_typerror(L, 1, "panel");
+    if(lua_gettop(L)<1) typerror(L, 1, "panel");
     panel *p = lua_touserdata(L, 1);
     lua_pushinteger(L, p->width);
     lua_pushinteger(L, p->height);
@@ -342,7 +405,7 @@ static int panel_size_lua(lua_State *L) {
 }
 
 static int panel_pixelsize_lua(lua_State *L) {
-    if(lua_gettop(L)<1) luaL_typerror(L, 1, "panel");
+    if(lua_gettop(L)<1) typerror(L, 1, "panel");
     panel *p = lua_touserdata(L, 1);
     lua_pushinteger(L, p->width*p->font_width/16);
     lua_pushinteger(L, p->height*p->font_height/16);
@@ -351,7 +414,7 @@ static int panel_pixelsize_lua(lua_State *L) {
 
 static int panel_set_lua(lua_State *L) {
     int top = lua_gettop(L);
-    if(top<1) luaL_typerror(L, 1, "panel");
+    if(top<1) typerror(L, 1, "panel");
     panel *p = lua_touserdata(L, 1);
     int x = lua_tointeger(L, 2);
     int y = lua_tointeger(L, 3);
@@ -372,7 +435,7 @@ static int panel_set_lua(lua_State *L) {
 
 static int panel_fillrect_lua(lua_State *L) {
     int top = lua_gettop(L);
-    if(top<1) luaL_typerror(L, 1, "panel");
+    if(top<1) typerror(L, 1, "panel");
     panel *p = lua_touserdata(L, 1);
     int x = lua_tointeger(L, 2);
     int y = lua_tointeger(L, 3);
@@ -393,11 +456,49 @@ static int panel_fillrect_lua(lua_State *L) {
     return 0;
 }
 
+static int panel_fill_indexed_lua(lua_State *L) {
+    int top = lua_gettop(L);
+    if(top<1) typerror(L, 1, "panel");
+    check_userdata_type(L, 2, "grid");
+    if(!lua_istable(L, top)) typerror(L, top, "table");
+    panel *p = lua_touserdata(L, 1);
+    grid *g = lua_touserdata(L, 2);
+    int count = lua_objlen(L, top);
+    int (*tilespec)[3] = malloc(sizeof(int[3])*count);
+    for(int i = 1;i<=count;++i) {
+        lua_pushinteger(L, i);
+        lua_gettable(L, top);
+
+        lua_pushinteger(L, 1);
+        lua_gettable(L, -2);
+        tilespec[i-1][0] = lua_tointeger(L, -1);
+        lua_pop(L, 1);
+
+        lua_pushinteger(L, 2);
+        lua_gettable(L, -2);
+        tilespec[i-1][1] = lua_tointeger(L, -1);
+        lua_pop(L, 1);
+
+        lua_pushinteger(L, 3);
+        lua_gettable(L, -2);
+        tilespec[i-1][2] = lua_tointeger(L, -1);
+        lua_pop(L, 1);
+    }
+    if(top>3) {
+        check_userdata_type(L, 3, "grid");
+        panel_fill_indexed_mul(p, g, lua_touserdata(L, 3), tilespec);
+    } else {
+        panel_fill_indexed(p, g, tilespec);
+    }
+    free(tilespec);
+    return 0;
+}
+
 static int panel_print_lua(lua_State *L) {
     int top = lua_gettop(L);
-    if(top<1) luaL_typerror(L, 1, "panel");
-    if(top<3) luaL_typerror(L, top, "number");
-    if(top<4) luaL_typerror(L, top, "string");
+    if(top<1) typerror(L, 1, "panel");
+    if(top<3) typerror(L, top+1, "number");
+    if(top<4) typerror(L, top+1, "string");
     panel *p = lua_touserdata(L, 1);
     int x = lua_tointeger(L, 2);
     int y = lua_tointeger(L, 3);
@@ -408,7 +509,7 @@ static int panel_print_lua(lua_State *L) {
 
 static int panel_draw_lua(lua_State *L) {
     int top = lua_gettop(L);
-    if(top<1) luaL_typerror(L, 1, "panel");
+    if(top<1) typerror(L, 1, "panel");
     panel *p = lua_touserdata(L, 1);
     double x = top<2 ? 0.0f : lua_tonumber(L, 2);
     double y = top<3 ? 0.0f : lua_tonumber(L, 3);
@@ -420,8 +521,8 @@ static int panel_draw_lua(lua_State *L) {
 
 static int panel_create_lua(lua_State *L) {
     int top = lua_gettop(L);
-    if(top<1 || !lua_isnumber(L, 1)) return luaL_typerror(L, 1, "number");
-    if(top<2 || !lua_isnumber(L, 2)) return luaL_typerror(L, 2, "number");
+    if(top<1 || !lua_isnumber(L, 1)) return typerror(L, 1, "number");
+    if(top<2 || !lua_isnumber(L, 2)) return typerror(L, 2, "number");
     check_userdata_type(L, 3, "image");
     panel *p = lua_newuserdata(L, sizeof(panel));
     *p = panel_create(lua_tointeger(L, 1), lua_tointeger(L, 2), *((image*)lua_touserdata(L, 3)));
@@ -442,7 +543,7 @@ static int panel_create_lua(lua_State *L) {
     lua_pushcfunction(L, panel_size_lua);
     lua_rawset(L, -3);
 
-    lua_pushstring(L, "pixelsize");
+    lua_pushstring(L, "pixel_size");
     lua_pushcfunction(L, panel_pixelsize_lua);
     lua_rawset(L, -3);
 
@@ -450,8 +551,12 @@ static int panel_create_lua(lua_State *L) {
     lua_pushcfunction(L, panel_set_lua);
     lua_rawset(L, -3);
 
-    lua_pushstring(L, "fillrect");
+    lua_pushstring(L, "fill_rect");
     lua_pushcfunction(L, panel_fillrect_lua);
+    lua_rawset(L, -3);
+
+    lua_pushstring(L, "fill_indexed");
+    lua_pushcfunction(L, panel_fill_indexed_lua);
     lua_rawset(L, -3);
 
     lua_pushstring(L, "print");

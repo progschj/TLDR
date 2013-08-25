@@ -1,16 +1,15 @@
 width = 80
 height = 60
-font = image.load("fonts/terminal8x12_gs_ro_modified.png")
+font = image.load("fonts/terminal8x8_gs_ro_modified.png")
 fontwidth, fontheight = font:size()
 tilewidth = fontwidth/16
 tileheight = fontheight/16
 
 map = panel.create(width, height, font)
-window:resize(map:pixelsize())
+window:resize(map:pixel_size())
 
 walls = grid.create(0, 0, width, height)
 light = grid.create(0, 0, width, height)
-distances = grid.create(0, 0, width, height)
 
 for x=0,width-1 do
     for y=0,height-1 do
@@ -21,17 +20,13 @@ for x=0,width-1 do
     end
 end
 
-destination = {5, 5}
-path.dijkstra(distances, walls, {destination}, 8)
-
 close = false
-mx = 0
-my = 0
+mouse = {x = 0, y = 0}
 
 window:set_mouse_move_callback(
 function(x, y)
-    mx = x/tilewidth
-    my = y/tileheight
+    mouse.x = x/tilewidth
+    mouse.y = y/tileheight
 end)
 
 window:set_close_callback(
@@ -48,27 +43,14 @@ end)
 
 
 while not close do
-    window:wait_events()
-    light:fill(0)
-    fov.shadowcast(walls, light, mx, my, 30, 0.1)
+    window:poll_events()
+    light:fill(0.1)
 
-    for x=0,width-1 do
-        for y=0,height-1 do
-           map:set(x, y, string.byte(" "), 0xFFFFFF, 0x010101*math.floor(255*math.min(light:get(x, y) + 0.1*walls:get(x, y), 1)))
-        end
-    end
-
-    x = math.floor(mx)
-    y = math.floor(my)
-
-    map:set(x, y, string.byte("#"), 0xFF5F5F)
-    while x ~= destination[1] or y ~= destination[2] do
-        dx, dy = path.gradient(distances, x, y, 8)
-        if dx == nil then break end
-        x = x + dx
-        y = y + dy
-        map:set(x, y, string.byte("#"), 0xFF5F5F)
-    end
+    fov.shadowcast(walls, light, mouse.x, mouse.y, 40, 0.1, 0.9)
+    map:fill_indexed(walls, light, {
+        {string.byte(" "), 0xFFFFFF, 0x000000},
+        {string.byte(" "), 0xFFFFFF, 0xFFFFFF}
+    });
 
     map:draw()
     window:swap_buffers()

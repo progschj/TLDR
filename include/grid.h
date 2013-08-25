@@ -24,6 +24,10 @@ void grid_fill(grid *g, int x, int y, int width, int height, double v);
 
 void grid_jitter(grid *g, double amount);
 
+void grid_add(grid *g1, grid *g2);
+
+void grid_mul(grid *g1, grid *g2);
+
 void grid_destroy(grid g);
 
 extern const luaL_Reg grid_lib[];

@@ -21,7 +21,7 @@ typedef struct shadowcast_data_t {
     double x0, y0;
     double signx, signy;
     int swapped;
-    double falloff;
+    double falloff, amount;
     double (*attenuation)(struct shadowcast_data_t*,double,double);
 } shadowcast_data;
 
@@ -34,7 +34,7 @@ static double radial_attenuation(struct shadowcast_data_t *data, double x, doubl
     double diffx = x+0.5 - data->x0;
     double diffy = y+0.5 - data->y0;
     double offset = 1.0/(1+data->falloff*data->r);
-    return dmax(0, (1.0/(1+data->falloff*sqrt(diffx*diffx + diffy*diffy))-offset)/(1-offset));
+    return data->amount*dmax(0, (1.0/(1+data->falloff*sqrt(diffx*diffx + diffy*diffy))-offset)/(1-offset));
 }
 
 static void areasplit(double base, double slope, double *first, double *second) {
@@ -126,7 +126,7 @@ static void calc_fov_octant(shadowcast_data *data) {
 
 void shadowcast_impl(
     grid *transparent, grid *light, double x0, double y0, int r,
-    double falloff, double (*attenuation)(struct shadowcast_data_t*,double,double)
+    double falloff, double amount, double (*attenuation)(struct shadowcast_data_t*,double,double)
 )
 {
     if(!grid_get(transparent, x0, y0))
@@ -138,7 +138,7 @@ void shadowcast_impl(
         grid_get(light, x0, y0-1)
     };
 
-    shadowcast_data data = {transparent, light, r, 0, 0, 0, 0, 0, falloff, attenuation};
+    shadowcast_data data = {transparent, light, r, 0, 0, 0, 0, 0, falloff, amount, attenuation};
 
     data.x0 = 1-x0; data.y0 = y0; data.signx = -1; data.signy = 1; data.swapped = 0;
     calc_fov_octant(&data);
@@ -178,19 +178,19 @@ void shadowcast_impl(
 
 void shadowcast(grid *transparent, grid *light, double x0, double y0, int r)
 {
-    shadowcast_impl(transparent, light, x0, y0, r, 0, flat_attenuation);
+    shadowcast_impl(transparent, light, x0, y0, r, 0, 1, flat_attenuation);
 }
 
-void attenuated_shadowcast(grid *transparent, grid *light, double x0, double y0, int r, double falloff)
+void attenuated_shadowcast(grid *transparent, grid *light, double x0, double y0, int r, double falloff, double amount)
 {
-    shadowcast_impl(transparent, light, x0, y0, r, falloff, radial_attenuation);
+    shadowcast_impl(transparent, light, x0, y0, r, falloff, amount, radial_attenuation);
 }
 
 int shadowcast_lua(lua_State *L) {
     check_userdata_type(L, 1, "grid");
     check_userdata_type(L, 2, "grid");
     int top = lua_gettop(L);
-    if(top<5) luaL_typerror(L, top, "number");
+    if(top<5) typerror(L, top+1, "number");
     grid *transparent = lua_touserdata(L, 1);
     grid *light = lua_touserdata(L, 2);
     double x0 = lua_tonumber(L, 3);
@@ -199,8 +199,10 @@ int shadowcast_lua(lua_State *L) {
 
     if(top == 5)
         shadowcast(transparent, light, x0, y0, r);
+    else if(top == 6)
+        attenuated_shadowcast(transparent, light, x0, y0, r, lua_tonumber(L, 6), 1);
     else
-        attenuated_shadowcast(transparent, light, x0, y0, r, lua_tonumber(L, 6));
+        attenuated_shadowcast(transparent, light, x0, y0, r, lua_tonumber(L, 6), lua_tonumber(L, 7));
     return 0;
 }
 

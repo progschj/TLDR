@@ -68,7 +68,7 @@ static int dijkstra_lua(lua_State *L) {
     check_userdata_type(L, 1, "grid");
     check_userdata_type(L, 2, "grid");
     int top = lua_gettop(L);
-    if(top<3 || !lua_istable(L, 3)) return luaL_typerror(L, 3, "table");
+    if(top<3 || !lua_istable(L, 3)) return typerror(L, 3, "table");
     grid *distances = lua_touserdata(L, 1);
     grid *walkable = lua_touserdata(L, 2);
     int count = lua_objlen(L, 3);
@@ -98,7 +98,7 @@ static int dijkstra_lua(lua_State *L) {
 static int gradient_lua(lua_State *L) {
     int top = lua_gettop(L);
     check_userdata_type(L, 1, "grid");
-    if(top<3) return luaL_typerror(L, top, "number");
+    if(top<3) return typerror(L, 3, "number");
     grid *distances = lua_touserdata(L, 1);
     int x0 = lua_tonumber(L, 2);
     int y0 = lua_tonumber(L, 3);

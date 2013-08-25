@@ -4,6 +4,8 @@
 #include <lualib.h>
 #include <lauxlib.h>
 
+#include <utility.h>
+
 typedef struct callbacks_t {
     lua_State *L;
     int mouse_button;
@@ -71,7 +73,7 @@ static void close_callback(GLFWwindow *window) {
 
 static int window_get_mouse_position_lua(lua_State *L) {
     int top = lua_gettop(L);
-    if(top<1) luaL_typerror(L, 1, "window");
+    if(top<1) typerror(L, 1, "window");
     GLFWwindow *window = *((GLFWwindow**)lua_touserdata(L, 1));
     double x, y;
     glfwGetCursorPos(window, &x, &y);
@@ -82,8 +84,8 @@ static int window_get_mouse_position_lua(lua_State *L) {
 
 static int window_get_mouse_button_lua(lua_State *L) {
     int top = lua_gettop(L);
-    if(top<1) luaL_typerror(L, 1, "window");
-    if(top<2) luaL_typerror(L, 2, "number");
+    if(top<1) typerror(L, 1, "window");
+    if(top<2) typerror(L, 2, "number");
     GLFWwindow *window = *((GLFWwindow**)lua_touserdata(L, 1));
     lua_pushinteger(L, glfwGetMouseButton(window, lua_tointeger(L, 2)));
     return 1;
@@ -91,8 +93,8 @@ static int window_get_mouse_button_lua(lua_State *L) {
 
 static int window_get_key_lua(lua_State *L) {
     int top = lua_gettop(L);
-    if(top<1) luaL_typerror(L, 1, "window");
-    if(top<2) luaL_typerror(L, 2, "number");
+    if(top<1) typerror(L, 1, "window");
+    if(top<2) typerror(L, 2, "number");
     GLFWwindow *window = *((GLFWwindow**)lua_touserdata(L, 1));
     lua_pushinteger(L, glfwGetKey(window, lua_tointeger(L, 2)));
     return 1;
@@ -100,7 +102,7 @@ static int window_get_key_lua(lua_State *L) {
 
 static int window_swap_buffers_lua(lua_State *L) {
     int top = lua_gettop(L);
-    if(top<1) luaL_typerror(L, 1, "window");
+    if(top<1) typerror(L, 1, "window");
     GLFWwindow *window = *((GLFWwindow**)lua_touserdata(L, 1));
     glfwSwapBuffers(window);
     return 0;
@@ -120,7 +122,7 @@ static int window_wait_events_lua(lua_State *L) {
 
 
 static int window_size_lua(lua_State *L) {
-    if(lua_gettop(L)<1) luaL_typerror(L, 1, "window");
+    if(lua_gettop(L)<1) typerror(L, 1, "window");
     GLFWwindow *window = *((GLFWwindow**)lua_touserdata(L, 1));
     int width, height;
     glfwGetWindowSize(window, &width, &height);
@@ -131,8 +133,8 @@ static int window_size_lua(lua_State *L) {
 
 static int window_resize_lua(lua_State *L) {
     int top = lua_gettop(L);
-    if(top<1) luaL_typerror(L, 1, "window");
-    if(top<3) luaL_typerror(L, top+1, "number");
+    if(top<1) typerror(L, 1, "window");
+    if(top<3) typerror(L, top+1, "number");
     GLFWwindow *window = *((GLFWwindow**)lua_touserdata(L, 1));
     int width = lua_tointeger(L, 2);
     int height = lua_tointeger(L, 3);
@@ -143,8 +145,8 @@ static int window_resize_lua(lua_State *L) {
 
 static int window_settitle_lua(lua_State *L) {
     int top = lua_gettop(L);
-    if(top<1) luaL_typerror(L, 1, "window");
-    if(top<2) luaL_typerror(L, top+1, "string");
+    if(top<1) typerror(L, 1, "window");
+    if(top<2) typerror(L, top+1, "string");
     GLFWwindow *window = *((GLFWwindow**)lua_touserdata(L, 1));
     const char *title = lua_tostring(L, 2);
     glfwSetWindowTitle(window, title);
@@ -153,8 +155,8 @@ static int window_settitle_lua(lua_State *L) {
 
 static int window_key_callback_lua(lua_State *L) {
     int top = lua_gettop(L);
-    if(top<1) luaL_typerror(L, 1, "window");
-    if(top<2) luaL_typerror(L, 2, "function");
+    if(top<1) typerror(L, 1, "window");
+    if(top<2) typerror(L, 2, "function");
     GLFWwindow *window = *((GLFWwindow**)lua_touserdata(L, 1));
     lua_getfield(L, 1, "__callbacks");
     callbacks *c = lua_touserdata(L, -1);
@@ -168,15 +170,15 @@ static int window_key_callback_lua(lua_State *L) {
         lua_pushvalue(L, 2);
         c->key = luaL_ref(L, LUA_REGISTRYINDEX);
     } else {
-        luaL_typerror(L, 2, "function");
+        typerror(L, 2, "function");
     }
     return 0;
 }
 
 static int window_character_callback_lua(lua_State *L) {
     int top = lua_gettop(L);
-    if(top<1) luaL_typerror(L, 1, "window");
-    if(top<2) luaL_typerror(L, 2, "function");
+    if(top<1) typerror(L, 1, "window");
+    if(top<2) typerror(L, 2, "function");
     GLFWwindow *window = *((GLFWwindow**)lua_touserdata(L, 1));
     lua_getfield(L, 1, "__callbacks");
     callbacks *c = lua_touserdata(L, -1);
@@ -190,15 +192,15 @@ static int window_character_callback_lua(lua_State *L) {
         lua_pushvalue(L, 2);
         c->character = luaL_ref(L, LUA_REGISTRYINDEX);
     } else {
-        luaL_typerror(L, 2, "function");
+        typerror(L, 2, "function");
     }
     return 0;
 }
 
 static int window_mouse_button_callback_lua(lua_State *L) {
     int top = lua_gettop(L);
-    if(top<1) luaL_typerror(L, 1, "window");
-    if(top<2) luaL_typerror(L, 2, "function");
+    if(top<1) typerror(L, 1, "window");
+    if(top<2) typerror(L, 2, "function");
     GLFWwindow *window = *((GLFWwindow**)lua_touserdata(L, 1));
     lua_getfield(L, 1, "__callbacks");
     callbacks *c = lua_touserdata(L, -1);
@@ -212,15 +214,15 @@ static int window_mouse_button_callback_lua(lua_State *L) {
         lua_pushvalue(L, 2);
         c->mouse_button = luaL_ref(L, LUA_REGISTRYINDEX);
     } else {
-        luaL_typerror(L, 2, "function");
+        typerror(L, 2, "function");
     }
     return 0;
 }
 
 static int window_mouse_move_callback_lua(lua_State *L) {
     int top = lua_gettop(L);
-    if(top<1) luaL_typerror(L, 1, "window");
-    if(top<2) luaL_typerror(L, 2, "function");
+    if(top<1) typerror(L, 1, "window");
+    if(top<2) typerror(L, 2, "function");
     GLFWwindow *window = *((GLFWwindow**)lua_touserdata(L, 1));
     lua_getfield(L, 1, "__callbacks");
     callbacks *c = lua_touserdata(L, -1);
@@ -234,15 +236,15 @@ static int window_mouse_move_callback_lua(lua_State *L) {
         lua_pushvalue(L, 2);
         c->mouse_move = luaL_ref(L, LUA_REGISTRYINDEX);
     } else {
-        luaL_typerror(L, 2, "function");
+        typerror(L, 2, "function");
     }
     return 0;
 }
 
 static int window_scroll_callback_lua(lua_State *L) {
     int top = lua_gettop(L);
-    if(top<1) luaL_typerror(L, 1, "window");
-    if(top<2) luaL_typerror(L, 2, "function");
+    if(top<1) typerror(L, 1, "window");
+    if(top<2) typerror(L, 2, "function");
     GLFWwindow *window = *((GLFWwindow**)lua_touserdata(L, 1));
     lua_getfield(L, 1, "__callbacks");
     callbacks *c = lua_touserdata(L, -1);
@@ -256,15 +258,15 @@ static int window_scroll_callback_lua(lua_State *L) {
         lua_pushvalue(L, 2);
         c->scroll = luaL_ref(L, LUA_REGISTRYINDEX);
     } else {
-        luaL_typerror(L, 2, "function");
+        typerror(L, 2, "function");
     }
     return 0;
 }
 
 static int window_close_callback_lua(lua_State *L) {
     int top = lua_gettop(L);
-    if(top<1) luaL_typerror(L, 1, "window");
-    if(top<2) luaL_typerror(L, 2, "function");
+    if(top<1) typerror(L, 1, "window");
+    if(top<2) typerror(L, 2, "function");
     GLFWwindow *window = *((GLFWwindow**)lua_touserdata(L, 1));
     lua_getfield(L, 1, "__callbacks");
     callbacks *c = lua_touserdata(L, -1);
@@ -278,7 +280,7 @@ static int window_close_callback_lua(lua_State *L) {
         lua_pushvalue(L, 2);
         c->close = luaL_ref(L, LUA_REGISTRYINDEX);
     } else {
-        luaL_typerror(L, 2, "function");
+        typerror(L, 2, "function");
     }
     return 0;
 }

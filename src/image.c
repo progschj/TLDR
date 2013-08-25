@@ -17,8 +17,7 @@ image image_load(const char *file_name) {
 
     FILE *fp = fopen(file_name, "rb");
     if(!fp) goto error;
-    fread(header, 1, 8, fp);
-    if(png_sig_cmp(header, 0, 8)) goto error;
+    if(fread(header, 1, 8, fp) != 8 || png_sig_cmp(header, 0, 8)) goto error;
 
     png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
 
@@ -63,7 +62,7 @@ static int image_destroy_lua(lua_State *L) {
 }
 
 static int image_size_lua(lua_State *L) {
-    if(lua_gettop(L)<1) luaL_typerror(L, 1, "image");
+    if(lua_gettop(L)<1) typerror(L, 1, "image");
     image *img = lua_touserdata(L, 1);
     lua_pushinteger(L, img->width);
     lua_pushinteger(L, img->height);
@@ -71,7 +70,7 @@ static int image_size_lua(lua_State *L) {
 }
 
 static int image_load_lua(lua_State *L) {
-    if(lua_gettop(L)<1 || !lua_isstring(L, 1)) return luaL_typerror(L, 1, "string");
+    if(lua_gettop(L)<1 || !lua_isstring(L, 1)) return typerror(L, 1, "string");
     image *img = lua_newuserdata(L, sizeof(image));
     *img = image_load(lua_tostring(L, 1));
     lua_newtable(L);

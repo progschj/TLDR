@@ -8,6 +8,7 @@
 #include <lauxlib.h>
 
 #include <image.h>
+#include <grid.h>
 
 typedef struct panel_t {
     int width, height, font_width, font_height;
@@ -32,6 +33,10 @@ void panel_fill_rect(panel *p, int x0, int y0, int width, int height, int tile, 
 void panel_fill_rect_tile(panel *p, int x0, int y0, int width, int height, int tile);
 
 void panel_fill_rect_tile_fg(panel *p, int x0, int y0, int width, int height, int tile, int fg);
+
+void panel_fill_indexed(panel *p, grid *g, const int (*tilespec)[3]);
+
+void panel_fill_indexed_mul(panel *p, grid *g, grid *f, const int (*tilespec)[3]);
 
 void panel_xyprint(panel *p, int x0, int y0, const char *str);
 

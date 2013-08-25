@@ -18,6 +18,8 @@
 #include <noise.h>
 #include <shadowcast.h>
 #include <pathfinding.h>
+#include <timelib.h>
+#include <color.h>
 
 
 void error_callback(int error, const char* description) {
@@ -74,6 +76,8 @@ int main(int argc, char *argv[]) {
     luaL_register(L, "noise", noise_lib);
     luaL_register(L, "fov", shadowcast_lib);
     luaL_register(L, "path", pathfinding_lib);
+    luaL_register(L, "time", time_lib);
+    luaL_register(L, "color", color_lib);
     window_register_lua(L, window);
 
     glDisable(GL_DEPTH_TEST);
