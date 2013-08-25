@@ -132,6 +132,10 @@ void shadowcast_impl(
     if(!grid_get(transparent, x0, y0))
         return;
 
+    //avoid issues at integer positions the cheap way
+    if(x0 == floor(x0)) x0 = nextafter(x0, x0+1);
+    if(y0 == floor(y0)) y0 = nextafter(y0, y0+1);
+
     double backup[] = {
         grid_get(light, x0, y0), grid_get(light, x0+1, y0),
         grid_get(light, x0-1, y0), grid_get(light, x0, y0+1),

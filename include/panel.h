@@ -34,9 +34,9 @@ void panel_fill_rect_tile(panel *p, int x0, int y0, int width, int height, int t
 
 void panel_fill_rect_tile_fg(panel *p, int x0, int y0, int width, int height, int tile, int fg);
 
-void panel_fill_indexed(panel *p, grid *g, const int (*tilespec)[3]);
+void panel_fill_indexed(panel *p, grid *g, int (*tilespec)[3]);
 
-void panel_fill_indexed_mul(panel *p, grid *g, grid *f, const int (*tilespec)[3]);
+void panel_fill_indexed_mul(panel *p, grid *g, grid *f, int (*tilespec)[3]);
 
 void panel_xyprint(panel *p, int x0, int y0, const char *str);
 

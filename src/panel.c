@@ -59,7 +59,7 @@ const char *fragment_source =
     "   vec4 fg = texture2D(foreground, gl_TexCoord[0].xy);\n"
     "   vec4 bg = texture2D(background, gl_TexCoord[0].xy);\n"
     "   vec2 tile = vec2(fg.w, bg.w)*255./256.;\n"
-    "   vec4 glyph = texture2D(font, tile.xy+vec2(1./16)*tilecoord);\n"
+    "   vec4 glyph = texture2D(font, tile.xy+vec2(1./16.)*tilecoord);\n"
     "   gl_FragColor.xyz = mix(bg.xyz, fg.xyz, glyph.xyz);\n"
     "   gl_FragColor.w = 1.;\n"
     "}\n";
@@ -272,7 +272,7 @@ void panel_fill_rect_tile_fg(panel *p, int x0, int y0, int width, int height, in
     }
 }
 
-void panel_fill_indexed(panel *p, grid *g, const int (*tilespec)[3]) {
+void panel_fill_indexed(panel *p, grid *g, int (*tilespec)[3]) {
     int x0 = clamp(g->x0, 0, p->width);
     int x1 = clamp(g->x0+g->width, 0, p->width);
     int y0 = clamp(g->y0, 0, p->height);
@@ -302,7 +302,7 @@ void panel_fill_indexed(panel *p, grid *g, const int (*tilespec)[3]) {
     }
 }
 
-void panel_fill_indexed_mul(panel *p, grid *g, grid *f, const int (*tilespec)[3]) {
+void panel_fill_indexed_mul(panel *p, grid *g, grid *f, int (*tilespec)[3]) {
     int x0 = clamp(g->x0, 0, p->width);
     int x1 = clamp(g->x0+g->width, 0, p->width);
     int y0 = clamp(g->y0, 0, p->height);
