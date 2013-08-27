@@ -272,7 +272,7 @@ void panel_fill_rect_tile_fg(panel *p, int x0, int y0, int width, int height, in
     }
 }
 
-void panel_fill_indexed(panel *p, grid *g, int (*tilespec)[3]) {
+void panel_fill_indexed(panel *p, grid *g, int (*tilespec)[3], int count) {
     int x0 = clamp(g->x0, 0, p->width);
     int x1 = clamp(g->x0+g->width, 0, p->width);
     int y0 = clamp(g->y0, 0, p->height);
@@ -281,6 +281,7 @@ void panel_fill_indexed(panel *p, grid *g, int (*tilespec)[3]) {
         for(int y = y0;y<y1;++y) {
             int index = x + p->width*y;
             int k = grid_get(g, x, y);
+            if(k >= count) continue;
             int tile = tilespec[k][0];
             int fg = tilespec[k][1];
             int bg = tilespec[k][2];
@@ -302,7 +303,7 @@ void panel_fill_indexed(panel *p, grid *g, int (*tilespec)[3]) {
     }
 }
 
-void panel_fill_indexed_mul(panel *p, grid *g, grid *f, int (*tilespec)[3]) {
+void panel_fill_indexed_mul(panel *p, grid *g, grid *f, int (*tilespec)[3], int count) {
     int x0 = clamp(g->x0, 0, p->width);
     int x1 = clamp(g->x0+g->width, 0, p->width);
     int y0 = clamp(g->y0, 0, p->height);
@@ -311,6 +312,7 @@ void panel_fill_indexed_mul(panel *p, grid *g, grid *f, int (*tilespec)[3]) {
         for(int y = y0;y<y1;++y) {
             int index = x + p->width*y;
             int k = grid_get(g, x, y);
+            if(k >= count) continue;
             double factor = grid_get(f, x, y);
             int tile = tilespec[k][0];
             int fg = tilespec[k][1];
@@ -486,9 +488,9 @@ static int panel_fill_indexed_lua(lua_State *L) {
     }
     if(top>3) {
         check_userdata_type(L, 3, "grid");
-        panel_fill_indexed_mul(p, g, lua_touserdata(L, 3), tilespec);
+        panel_fill_indexed_mul(p, g, lua_touserdata(L, 3), tilespec, count);
     } else {
-        panel_fill_indexed(p, g, tilespec);
+        panel_fill_indexed(p, g, tilespec, count);
     }
     free(tilespec);
     return 0;
