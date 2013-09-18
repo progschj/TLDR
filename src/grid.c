@@ -104,7 +104,7 @@ void grid_assign_grid(grid *g1, grid *g2) {
             grid_set(g1, x, y, grid_get(g2, x, y));
 }
 
-double clampd(double x, double low, double high) {
+static double clampd(double x, double low, double high) {
     if(x<low) return low;
     else if(x>high) return high;
     else return x;
@@ -118,6 +118,62 @@ void grid_clamp(grid *g1, double low, double high) {
     for(int x = x0;x<x1;++x)
         for(int y = y0;y<y1;++y)
             grid_set(g1, x, y, clampd(grid_get(g1, x, y), low, high));
+}
+
+void grid_step(grid *g1, double threshold) {
+    int x0 = g1->x0;
+    int y0 = g1->y0;
+    int x1 = g1->x0 + g1->width;
+    int y1 = g1->y0 + g1->height;
+    for(int x = x0;x<x1;++x)
+        for(int y = y0;y<y1;++y)
+            grid_set(g1, x, y, grid_get(g1, x, y)>threshold?1.0:0.0);
+}
+
+void grid_erode(grid *g1) {
+    grid tmp = grid_clone(g1);
+    int x0 = g1->x0;
+    int y0 = g1->y0;
+    int x1 = g1->x0 + g1->width;
+    int y1 = g1->y0 + g1->height;
+    for(int x = x0;x<x1;++x) {
+        for(int y = y0;y<y1;++y) {
+            double value = 1.0;
+            for(int xoffset = -1;xoffset<=1;++xoffset) {
+                for(int yoffset = -1;yoffset<=1;++yoffset) {
+                    int xn = x + xoffset;
+                    int yn = y + yoffset;
+                    if(grid_contains(&tmp, xn, yn) && grid_get(&tmp, xn, yn) == 0)
+                        value = 0.0;
+                }
+            }
+            grid_set(g1, x, y, value);
+        }
+    }
+    grid_destroy(tmp);
+}
+
+void grid_dilate(grid *g1) {
+    grid tmp = grid_clone(g1);
+    int x0 = g1->x0;
+    int y0 = g1->y0;
+    int x1 = g1->x0 + g1->width;
+    int y1 = g1->y0 + g1->height;
+    for(int x = x0;x<x1;++x) {
+        for(int y = y0;y<y1;++y) {
+            double value = 0.0;
+            for(int xoffset = -1;xoffset<=1;++xoffset) {
+                for(int yoffset = -1;yoffset<=1;++yoffset) {
+                    int xn = x + xoffset;
+                    int yn = y + yoffset;
+                    if(grid_contains(&tmp, xn, yn) && grid_get(&tmp, xn, yn) != 0)
+                        value = 1.0;
+                }
+            }
+            grid_set(g1, x, y, value);
+        }
+    }
+    grid_destroy(tmp);
 }
 
 void grid_destroy(grid g) {
@@ -246,6 +302,30 @@ static int grid_clamp_lua(lua_State *L) {
     return 0;
 }
 
+static int grid_step_lua(lua_State *L) {
+    int top = lua_gettop(L);
+    if(top<1) return typerror(L, 1, "grid");
+    grid *g1 = lua_touserdata(L, 1);
+    grid_step(g1, lua_tonumber(L, 2));
+    return 0;
+}
+
+static int grid_erode_lua(lua_State *L) {
+    int top = lua_gettop(L);
+    if(top<1) return typerror(L, 1, "grid");
+    grid *g1 = lua_touserdata(L, 1);
+    grid_erode(g1);
+    return 0;
+}
+
+static int grid_dilate_lua(lua_State *L) {
+    int top = lua_gettop(L);
+    if(top<1) return typerror(L, 1, "grid");
+    grid *g1 = lua_touserdata(L, 1);
+    grid_dilate(g1);
+    return 0;
+}
+
 static int grid_get_lua(lua_State *L) {
     int top = lua_gettop(L);
     if(top<1) return typerror(L, 1, "grid");
@@ -328,6 +408,18 @@ static void grid_create_metatable_lua(lua_State *L) {
     lua_pushcfunction(L, grid_clamp_lua);
     lua_rawset(L, -3);
 
+    lua_pushstring(L, "step");
+    lua_pushcfunction(L, grid_step_lua);
+    lua_rawset(L, -3);
+
+    lua_pushstring(L, "erode");
+    lua_pushcfunction(L, grid_erode_lua);
+    lua_rawset(L, -3);
+
+    lua_pushstring(L, "dilate");
+    lua_pushcfunction(L, grid_dilate_lua);
+    lua_rawset(L, -3);
+
     lua_pushstring(L, "contains");
     lua_pushcfunction(L, grid_contains_lua);
     lua_rawset(L, -3);
@@ -356,8 +448,78 @@ static int grid_clone_lua(lua_State *L) {
     return 1;
 }
 
+static int grid_to_table_lua(lua_State *L) {
+    check_userdata_type(L, 1, "grid");
+    grid *g = lua_touserdata(L, 1);
+    lua_newtable(L);
+    lua_pushstring(L, "x0");
+    lua_pushnumber(L, g->x0);
+    lua_settable(L, -3);
+    lua_pushstring(L, "y0");
+    lua_pushnumber(L, g->y0);
+    lua_settable(L, -3);
+    lua_pushstring(L, "width");
+    lua_pushnumber(L, g->width);
+    lua_settable(L, -3);
+    lua_pushstring(L, "height");
+    lua_pushnumber(L, g->height);
+    lua_settable(L, -3);
+    lua_pushstring(L, "data");
+    lua_newtable(L);
+    
+    int size = g->width*g->height;
+    for(int i = 0;i<size;++i) {
+        lua_pushnumber(L, g->data[i]);
+        lua_rawseti(L, -2, i+1);
+    }
+    
+    lua_settable(L, -3);
+    return 1;
+}
+
+static int grid_from_table_lua(lua_State *L) {
+    if(!lua_istable(L, 1)) return typerror(L, 1, "table");
+    lua_pushstring(L, "x0");
+    lua_gettable(L, 1);
+    int x0 = lua_tonumber(L, -1);
+    lua_pop(L, 1);
+    
+    lua_pushstring(L, "y0");
+    lua_gettable(L, 1);
+    int y0 = lua_tonumber(L, -1);
+    lua_pop(L, 1);
+    
+    lua_pushstring(L, "width");
+    lua_gettable(L, 1);
+    int width = lua_tonumber(L, -1);
+    lua_pop(L, 1);
+    
+    lua_pushstring(L, "height");
+    lua_gettable(L, 1);
+    int height = lua_tonumber(L, -1);
+    lua_pop(L, 1);
+    
+    grid *g = lua_newuserdata(L, sizeof(grid));
+    *g = grid_create(x0, y0, width, height);
+    grid_create_metatable_lua(L);
+    
+    lua_pushstring(L, "data");
+    lua_gettable(L, 1);
+    int size = g->width*g->height;
+    for(int i = 0;i<size;++i) {
+        lua_rawgeti(L, -1, i+1);
+        g->data[i] = lua_tonumber(L, -1);
+        lua_pop(L, 1);
+    }
+    lua_pop(L, 1);
+    
+    return 1;
+}
+
 const luaL_Reg grid_lib[] = {
     {"create", grid_create_lua},
     {"clone", grid_clone_lua},
+    {"to_table", grid_to_table_lua},
+    {"from_table", grid_from_table_lua},
     {NULL, NULL}
 };

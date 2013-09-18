@@ -1,33 +1,21 @@
-width = 160
-height = 120
-font = image.load("fonts/terminal8x8_gs_ro_modified.png")
-fontwidth, fontheight = font:size()
-tilewidth = fontwidth/16
-tileheight = fontheight/16
+font8x8 = image.load("fonts/terminal8x8_gs_ro_modified_alpha.png")
+font8x12 = image.load("fonts/terminal8x12_gs_ro_modified_alpha.png")
 
-map = panel.create(width, height, font)
-window:resize(map:pixel_size())
+require("scripts/serialize")
 
-walls = grid.create(0, 0, width, height)
-light = grid.create(0, 0, width, height)
+width = 60
+height = 60
 
-for x=0,width-1 do
-    for y=0,height-1 do
-        local a = noise.perlin(x*0.05+100, y*0.05+200, 0.5)
-        local b = noise.perlin(x*0.05-300, y*0.05+100, 0.5)
-        local h = math.min(math.abs(a), math.abs(b))
-        walls:set(x, y, math.max(0, 1-math.floor(10*h)))
-    end
-end
+math.randomseed(os.time())
+
+map_panel = panel.create(width, height, font8x8)
+entities_panel = panel.create(width, height, font8x8)
+info_panel = panel.create(20, 40, font8x12)
+window:resize(640, 480)
+
+dofile("rules.lua")
 
 close = false
-mouse = {x = 0, y = 0}
-
-window:set_mouse_move_callback(
-function(x, y)
-    mouse.x = x/tilewidth
-    mouse.y = y/tileheight
-end)
 
 window:set_close_callback(
 function(button)
@@ -35,26 +23,48 @@ function(button)
 end)
 
 window:set_key_callback(
-function(key)
-    if key == window.input.KEY_ESCAPE then
-        close = true
+function(key, scancode, action)
+    if action == window.input.PRESS or action == window.input.REPEAT then
+        if key == window.input.KEY_ESCAPE then
+            close = true
+        end
     end
 end)
 
-light:fill(0.0)
+player = {}
+player.x = 10
+player.y = 10
+player.symbol = string.byte('@')
+player.color = 0xFFFF00
+initActor(player)
+
+
+g = grid.create(0, 0, width, height)
+g:fill(0, 0, width, height, 0)
+
+draw = function() 
+    start = time.seconds()
+
+    map_panel:fill_rect(0,0, width, height, string.byte(" "), 0x000000, 0x303030)
+    map_panel:fill_indexed(g, {
+        {string.byte('#'), 0x00AF00, 0x000000},
+    })
+    entities_panel:fill_rect(0,0, width, height, string.byte(" "), 0x000000, 0x000000)
+    entities_panel:set(player.x, player.y, player.symbol, player.color, 0x000000)
+
+    map_panel:draw(0, 0, 0.75, 1)
+    entities_panel:blend_draw(0, 0, 0.75, 1)
+    
+    info_panel:fill_rect(0,0, 20, 40, string.byte(" "), 0x000000, 0xFFFDD0)
+    info_panel:draw(0.75, 0, 0.25, 1)
+    
+    window:swap_buffers()
+
+    stop = time.seconds()
+    print((stop-start)*1e3)
+end
 
 while not close do
-    window:poll_events()
-    
-    fov.shadowcast(walls, light, mouse.x, mouse.y, 40, 0.1, 0.01)
-    light:add(0.1)    
-    map:fill_indexed(walls, light, {
-        {string.byte(" "), 0xFFFFFF, 0x000000},
-        {string.byte(" "), 0xFFFFFF, 0xFFFFFF}
-    });
-    light:add(-0.1)
-    light:mul(0.99)
-    
-    map:draw()
-    window:swap_buffers()
+    window:wait_events()
+    draw()
 end

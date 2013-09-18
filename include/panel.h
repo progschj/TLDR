@@ -11,7 +11,7 @@
 #include <grid.h>
 
 typedef struct panel_t {
-    int width, height, font_width, font_height;
+    int width, height, font_img_width, font_img_height;
     GLubyte *background;
     GLubyte *foreground;
     GLuint fg_tex, bg_tex, font, vbo;

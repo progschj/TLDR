@@ -61,7 +61,7 @@ const char *fragment_source =
     "   vec2 tile = vec2(fg.w, bg.w)*255./256.;\n"
     "   vec4 glyph = texture2D(font, tile.xy+vec2(1./16.)*tilecoord);\n"
     "   gl_FragColor.xyz = mix(bg.xyz, fg.xyz, glyph.xyz);\n"
-    "   gl_FragColor.w = 1.;\n"
+    "   gl_FragColor.w = glyph.w;\n"
     "}\n";
 
 // data for a fullscreen quad
@@ -159,7 +159,7 @@ panel panel_create(int width, int height, image font) {
     return result;
 }
 
-void panel_draw(panel *p, float x, float y, float width, float height) {
+static void panel_draw_internal(panel *p, float x, float y, float width, float height) {    
     glUseProgramObjectARB(p->shader_program);
     glUniform4fARB(glGetUniformLocationARB(p->shader_program, "extents"), x, 1.0f-y-height, width, height);
     glActiveTexture(GL_TEXTURE0);
@@ -182,6 +182,23 @@ void panel_draw(panel *p, float x, float y, float width, float height) {
     glTexCoordPointer(2, GL_FLOAT, 5*sizeof(GLfloat), (char*)0 + 3*sizeof(GLfloat));
 
     glDrawArrays(GL_TRIANGLES, 0, 6);
+}
+
+void panel_additive_draw(panel *p, float x, float y, float width, float height) {    
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE);
+    panel_draw_internal(p, x, y, width, height);
+}
+
+void panel_blend_draw(panel *p, float x, float y, float width, float height) {    
+    glEnable(GL_BLEND);  
+    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);  
+    panel_draw_internal(p, x, y, width, height);
+}
+
+void panel_draw(panel *p, float x, float y, float width, float height) {    
+    glDisable(GL_BLEND);
+    panel_draw_internal(p, x, y, width, height);
 }
 
 void panel_set(panel *p, int x, int y, int tile, int fg, int bg) {
@@ -223,8 +240,8 @@ void panel_fill_rect(panel *p, int x0, int y0, int width, int height, int tile, 
     int x1 = clamp(x0+width, 0, p->width);
     y0 = clamp(y0, 0, p->height);
     int y1 = clamp(y0+height, 0, p->height);
-    for(int x = x0;x<x1;++x) {
-        for(int y = y0;y<y1;++y) {
+    for(int y = y0;y<y1;++y) {
+        for(int x = x0;x<x1;++x) {
             int index = x + p->width*y;
 
             p->foreground[4*index + 0] = (fg>>16) & 0xFF;
@@ -245,8 +262,8 @@ void panel_fill_rect_tile(panel *p, int x0, int y0, int width, int height, int t
     int x1 = clamp(x0+width, 0, p->width);
     y0 = clamp(y0, 0, p->height);
     int y1 = clamp(y0+height, 0, p->height);
-    for(int x = x0;x<x1;++x) {
-        for(int y = y0;y<y1;++y) {
+    for(int y = y0;y<y1;++y) {
+        for(int x = x0;x<x1;++x) {
             int index = x + p->width*y;
             p->foreground[4*index + 3] = 16*((tile&0xFF)%16);
             p->background[4*index + 3] = 16*((tile&0xFF)/16);
@@ -277,11 +294,11 @@ void panel_fill_indexed(panel *p, grid *g, int (*tilespec)[3], int count) {
     int x1 = clamp(g->x0+g->width, 0, p->width);
     int y0 = clamp(g->y0, 0, p->height);
     int y1 = clamp(g->y0+g->height, 0, p->height);
-    for(int x = x0;x<x1;++x) {
-        for(int y = y0;y<y1;++y) {
+    for(int y = y0;y<y1;++y) {
+        for(int x = x0;x<x1;++x) {
             int index = x + p->width*y;
             int k = grid_get(g, x, y);
-            if(k >= count) continue;
+            if(k<0 || k >= count) continue;
             int tile = tilespec[k][0];
             int fg = tilespec[k][1];
             int bg = tilespec[k][2];
@@ -308,11 +325,11 @@ void panel_fill_indexed_mul(panel *p, grid *g, grid *f, int (*tilespec)[3], int 
     int x1 = clamp(g->x0+g->width, 0, p->width);
     int y0 = clamp(g->y0, 0, p->height);
     int y1 = clamp(g->y0+g->height, 0, p->height);
-    for(int x = x0;x<x1;++x) {
-        for(int y = y0;y<y1;++y) {
+    for(int y = y0;y<y1;++y) {
+        for(int x = x0;x<x1;++x) {
             int index = x + p->width*y;
             int k = grid_get(g, x, y);
-            if(k >= count) continue;
+            if(k<0 || k >= count) continue;
             double factor = grid_get(f, x, y);
             int tile = tilespec[k][0];
             int fg = tilespec[k][1];
@@ -367,13 +384,13 @@ void panel_print(panel *p, int x0, int y0, const char *str) {
         p->foreground[4*index + 3] = 16*((*str&0xFF)%16);
         p->background[4*index + 3] = 16*((*str&0xFF)/16);
 
-        if(fg>0) {
+        if(fg >= 0) {
             p->foreground[4*index + 0] = (fg>>16) & 0xFF;
             p->foreground[4*index + 1] = (fg>> 8) & 0xFF;
             p->foreground[4*index + 2] = (fg>> 0) & 0xFF;
         }
 
-        if(bg>0) {
+        if(bg >= 0) {
             p->background[4*index + 0] = (bg>>16) & 0xFF;
             p->background[4*index + 1] = (bg>> 8) & 0xFF;
             p->background[4*index + 2] = (bg>> 0) & 0xFF;
@@ -409,8 +426,8 @@ static int panel_size_lua(lua_State *L) {
 static int panel_pixelsize_lua(lua_State *L) {
     if(lua_gettop(L)<1) typerror(L, 1, "panel");
     panel *p = lua_touserdata(L, 1);
-    lua_pushinteger(L, p->width*p->font_width/16);
-    lua_pushinteger(L, p->height*p->font_height/16);
+    lua_pushinteger(L, p->width*p->font_img_width/16);
+    lua_pushinteger(L, p->height*p->font_img_height/16);
     return 2;
 }
 
@@ -484,7 +501,7 @@ static int panel_fill_indexed_lua(lua_State *L) {
         lua_pushinteger(L, 3);
         lua_gettable(L, -2);
         tilespec[i-1][2] = lua_tointeger(L, -1);
-        lua_pop(L, 1);
+        lua_pop(L, 2);
     }
     if(top>3) {
         check_userdata_type(L, 3, "grid");
@@ -518,6 +535,73 @@ static int panel_draw_lua(lua_State *L) {
     double width = top<4 ? 1.0f : lua_tonumber(L, 4);
     double height = top<5 ? 1.0f : lua_tonumber(L, 5);
     panel_draw(p, x, y, width, height);
+    return 0;
+}
+
+static int panel_additive_draw_lua(lua_State *L) {
+    int top = lua_gettop(L);
+    if(top<1) typerror(L, 1, "panel");
+    panel *p = lua_touserdata(L, 1);
+    double x = top<2 ? 0.0f : lua_tonumber(L, 2);
+    double y = top<3 ? 0.0f : lua_tonumber(L, 3);
+    double width = top<4 ? 1.0f : lua_tonumber(L, 4);
+    double height = top<5 ? 1.0f : lua_tonumber(L, 5);
+    panel_additive_draw(p, x, y, width, height);
+    return 0;
+}
+
+static int panel_blend_draw_lua(lua_State *L) {
+    int top = lua_gettop(L);
+    if(top<1) typerror(L, 1, "panel");
+    panel *p = lua_touserdata(L, 1);
+    double x = top<2 ? 0.0f : lua_tonumber(L, 2);
+    double y = top<3 ? 0.0f : lua_tonumber(L, 3);
+    double width = top<4 ? 1.0f : lua_tonumber(L, 4);
+    double height = top<5 ? 1.0f : lua_tonumber(L, 5);
+    panel_blend_draw(p, x, y, width, height);
+    return 0;
+}
+
+static int panel_blit_table_lua(lua_State *L) {
+    int top = lua_gettop(L);
+    if(top<1) typerror(L, 1, "panel");
+    panel *p = lua_touserdata(L, 1);
+    int x0 = lua_tointeger(L, 2);
+    int y0 = lua_tointeger(L, 3);
+    int width = lua_tointeger(L, 4);
+    int height = lua_tointeger(L, 5);
+    for(int j = 0;j<height;++j) {
+        for(int i = 0;i<width;++i) {
+            int source_idx = i + width*j;
+            int destination_idx = x0+i + p->width*(y0+j);
+            lua_rawgeti(L, -1, 1+source_idx);
+            lua_rawgeti(L, -1, 1);
+            lua_rawgeti(L, -2, 2);
+            lua_rawgeti(L, -3, 3);
+            int tile = lua_tointeger(L, -3);
+            int fg = lua_tointeger(L, -2);
+            int bg = lua_tointeger(L, -1);
+            lua_pop(L, 4);
+            
+            if(tile >= 0) {
+                p->foreground[4*destination_idx + 3] = 16*((tile&0xFF)%16);
+                p->background[4*destination_idx + 3] = 16*((tile&0xFF)/16);
+            }
+            
+            if(fg >= 0) {
+                p->foreground[4*destination_idx + 0] = (fg>>16) & 0xFF;
+                p->foreground[4*destination_idx + 1] = (fg>> 8) & 0xFF;
+                p->foreground[4*destination_idx + 2] = (fg>> 0) & 0xFF;
+            }
+
+            if(bg >= 0) {
+                p->background[4*destination_idx + 0] = (bg>>16) & 0xFF;
+                p->background[4*destination_idx + 1] = (bg>> 8) & 0xFF;
+                p->background[4*destination_idx + 2] = (bg>> 0) & 0xFF;
+            }
+            
+        }
+    }
     return 0;
 }
 
@@ -565,8 +649,20 @@ static int panel_create_lua(lua_State *L) {
     lua_pushcfunction(L, panel_print_lua);
     lua_rawset(L, -3);
 
+    lua_pushstring(L, "blit_table");
+    lua_pushcfunction(L, panel_blit_table_lua);
+    lua_rawset(L, -3);
+
     lua_pushstring(L, "draw");
     lua_pushcfunction(L, panel_draw_lua);
+    lua_rawset(L, -3);
+
+    lua_pushstring(L, "blend_draw");
+    lua_pushcfunction(L, panel_blend_draw_lua);
+    lua_rawset(L, -3);
+
+    lua_pushstring(L, "additive_draw");
+    lua_pushcfunction(L, panel_additive_draw_lua);
     lua_rawset(L, -3);
 
     lua_setmetatable(L, -2);

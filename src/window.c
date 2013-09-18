@@ -441,7 +441,7 @@ void window_register_lua(lua_State *L, GLFWwindow *window) {
     lua_pushinteger(L, GLFW_RELEASE);
     lua_rawset(L, -3);
 
-    lua_pushstring(L, "MOD_REPEAT");
+    lua_pushstring(L, "REPEAT");
     lua_pushinteger(L, GLFW_REPEAT);
     lua_rawset(L, -3);
 

@@ -129,9 +129,6 @@ void shadowcast_impl(
     double falloff, double amount, double (*attenuation)(struct shadowcast_data_t*,double,double)
 )
 {
-    if(!grid_get(transparent, x0, y0))
-        return;
-
     //avoid issues at integer positions the cheap way
     if(x0 == floor(x0)) x0 = nextafter(x0, x0+1);
     if(y0 == floor(y0)) y0 = nextafter(y0, y0+1);
@@ -210,7 +207,62 @@ int shadowcast_lua(lua_State *L) {
     return 0;
 }
 
+double exact_raycast(grid *transparent, double x0, double y0, double x1, double y1) {
+    double diffx = x1-x0;
+    double diffy = y1-y0;
+
+    double signx = diffx>0?1:-1;
+    double signy = diffy>0?1:-1;
+    double fx = diffx>0?1:0;
+    double fy = diffy>0?1:0;
+    
+    double x = x0;
+    double y = y0;
+    int ix = floor(x);
+    int iy = floor(y);
+    if(grid_get(transparent, ix, iy) == 0.0) return 0;
+    while(signx*x<=signx*x1 && signy*y<=signy*y1) {
+        double fractx = fx-(x-ix);
+        double fracty = fy-(y-iy);
+        double sx = fabs(diffx)>1.e-5 ? fractx/diffx : 1000;
+        double sy = fabs(diffy)>1.e-5 ? fracty/diffy : 1000;
+        if(sx < sy) {
+            ix += signx;
+        } else {
+            iy += signy;
+        }
+        if(grid_get(transparent, ix, iy) == 0.0)
+            break; 
+        if(sx < sy) {
+            x += fractx;
+            y += fractx/diffx*diffy;
+        } else {
+            x += fracty/diffy*diffx;
+            y += fracty;
+        }
+    }
+    if(fabs(diffx)>fabs(diffy)) {
+        return (x-x0)/(x1-x0);
+    } else {
+        return (y-y0)/(y1-y0);
+    }
+}
+
+int raycast_lua(lua_State *L) {
+    check_userdata_type(L, 1, "grid");
+    int top = lua_gettop(L);
+    if(top<5) typerror(L, top+1, "number");
+    grid *transparent = lua_touserdata(L, 1);
+    double x0 = lua_tonumber(L, 2);
+    double y0 = lua_tonumber(L, 3);
+    double x1 = lua_tonumber(L, 4);
+    double y1 = lua_tonumber(L, 5);
+    lua_pushnumber(L, exact_raycast(transparent, x0, y0, x1, y1));
+    return 1;
+}
+
 const luaL_Reg shadowcast_lib[] = {
     {"shadowcast", shadowcast_lua},
+    {"raycast", raycast_lua},
     {NULL, NULL}
 };
