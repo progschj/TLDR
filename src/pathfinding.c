@@ -32,13 +32,15 @@ double binary_grid_cost_function(int x0, int y0, int x1, int y1, void *userdata)
     }
 }
 
-void dijkstra_distance(grid *distances, const pos *targets, int count, int neighbors, cost_function_t cost_function, void *userdata){
+void dijkstra_distance_target(grid *distances, grid *target, const pos *targets, int count, int neighbors, cost_function_t cost_function, void *userdata){
     grid_fill(distances, distances->x0, distances->y0, distances->width, distances->height, DBL_MAX);
+    grid_fill(target, target->x0, target->y0, target->width, target->height, -1);
 
     queue open_set = queue_create(sizeof(pos));
 
     for(int i = 0;i<count;++i) {
         grid_set(distances, targets[i].x, targets[i].y, 0.0);
+        if(target != NULL) grid_set(target, targets[i].x, targets[i].y, i);
         queue_push(&open_set, targets+i);
     }
 
@@ -56,6 +58,7 @@ void dijkstra_distance(grid *distances, const pos *targets, int count, int neigh
             double cost = cost_function(cur.x, cur.y, neigh.x, neigh.y, userdata);
             if(neighdist > curdist + cost) {
                 grid_set(distances, neigh.x, neigh.y, curdist + cost);
+                if(target != NULL) grid_set(target, neigh.x, neigh.y, grid_get(target, cur.x, cur.y));
                 queue_push(&open_set, &neigh);
             }
         }
@@ -64,18 +67,27 @@ void dijkstra_distance(grid *distances, const pos *targets, int count, int neigh
     queue_destroy(open_set);
 }
 
+void dijkstra_distance(grid *distances, const pos *targets, int count, int neighbors, cost_function_t cost_function, void *userdata) {
+    dijkstra_distance_target(distances, NULL, targets, count, neighbors, cost_function, userdata);
+}
+
 static int dijkstra_lua(lua_State *L) {
+    int top = lua_gettop(L);
+    int tableindex = lua_istable(L, 3)?3:4;
     check_userdata_type(L, 1, "grid");
     check_userdata_type(L, 2, "grid");
-    int top = lua_gettop(L);
-    if(top<3 || !lua_istable(L, 3)) return typerror(L, 3, "table");
-    grid *distances = lua_touserdata(L, 1);
-    grid *walkable = lua_touserdata(L, 2);
-    int count = lua_objlen(L, 3);
+    if(tableindex == 4) check_userdata_type(L, 3, "grid");
+
+    if(!lua_istable(L, tableindex)) return typerror(L, tableindex, "table");
+    grid *walkable = lua_touserdata(L, 1);
+    grid *distances = lua_touserdata(L, 2);
+    grid *target = tableindex==4 ? lua_touserdata(L, 3) : NULL;
+    int count = lua_objlen(L, tableindex);
     pos *targets = malloc(count*sizeof(pos));
+    
     for(int i = 1;i<=count;++i) {
         lua_pushinteger(L, i);
-        lua_gettable(L, 3);
+        lua_gettable(L, tableindex);
 
         lua_pushinteger(L, 1);
         lua_gettable(L, -2);
@@ -86,11 +98,13 @@ static int dijkstra_lua(lua_State *L) {
         lua_gettable(L, -2);
         targets[i-1].y = lua_tointeger(L, -1);
         lua_pop(L, 1);
-
     }
+    
     int movement = 8;
-    if(top>=4) movement = lua_tointeger(L, 4);
-    dijkstra_distance(distances, targets, count, movement, binary_grid_cost_function, walkable);
+    if(top > tableindex) movement = lua_tointeger(L, tableindex+1);
+    
+    dijkstra_distance_target(distances, target, targets, count, movement, binary_grid_cost_function, walkable);
+    
     free(targets);
     return 0;
 }

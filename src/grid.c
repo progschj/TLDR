@@ -346,7 +346,7 @@ static int grid_contains_lua(lua_State *L) {
     grid *g = lua_touserdata(L, 1);
     int x = lua_tointeger(L, 2);
     int y = lua_tointeger(L, 3);
-    lua_pushinteger(L, grid_contains(g, x, y));
+    lua_pushboolean(L, grid_contains(g, x, y));
     return 1;
 }
 

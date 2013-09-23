@@ -55,11 +55,11 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    fprintf(stdout, "%s\n", glGetString(GL_VERSION));
+
     GLint major, minor;
     glGetIntegerv(GL_MAJOR_VERSION, &major);
     glGetIntegerv(GL_MINOR_VERSION, &minor);
-
-    fprintf(stdout, "OpenGL version %d.%d\n", major, minor);
 
     // check required extensions
     assert(GLEW_ARB_shader_objects);
