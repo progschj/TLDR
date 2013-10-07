@@ -220,7 +220,7 @@ static int grid_set_lua(lua_State *L) {
     grid *g = lua_touserdata(L, 1);
     int x = lua_tointeger(L, 2);
     int y = lua_tointeger(L, 3);
-    int value = lua_tonumber(L, 4);
+    double value = lua_tonumber(L, 4);
     grid_set(g, x, y, value);
     return 0;
 }

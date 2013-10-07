@@ -220,8 +220,7 @@ double exact_raycast(grid *transparent, double x0, double y0, double x1, double 
     double y = y0;
     int ix = floor(x);
     int iy = floor(y);
-    if(grid_get(transparent, ix, iy) == 0.0) return 0;
-    while(signx*x<=signx*x1 && signy*y<=signy*y1) {
+    while(grid_get(transparent, ix, iy) != 0.0 && signx*x<=signx*x1 && signy*y<=signy*y1) {
         double fractx = fx-(x-ix);
         double fracty = fy-(y-iy);
         double sx = fabs(diffx)>1.e-5 ? fractx/diffx : 1000;
@@ -231,8 +230,6 @@ double exact_raycast(grid *transparent, double x0, double y0, double x1, double 
         } else {
             iy += signy;
         }
-        if(grid_get(transparent, ix, iy) == 0.0)
-            break; 
         if(sx < sy) {
             x += fractx;
             y += fractx/diffx*diffy;

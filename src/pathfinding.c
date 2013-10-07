@@ -18,7 +18,7 @@ typedef struct pos_t {
 
 const pos offsets[] = {
     { 1, 0}, {-1, 0}, { 0, 1}, { 0,-1},
-    { 1, 1}, {-1, 1}, {-1,-1}, { 1,-1},
+    { 1, 1}, { 1,-1}, {-1, 1}, {-1,-1},
 };
 
 double binary_grid_cost_function(int x0, int y0, int x1, int y1, void *userdata) {
