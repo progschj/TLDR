@@ -55,7 +55,7 @@ static void areasplit(double base, double slope, double *first, double *second) 
 
 static void fill_line(
     shadowcast_data *data, int height, double leftbase,
-    double leftslope, double rightbase, double rightslope
+    double leftslope, double rightbase, double rightslope, double cond
 )
 {
     int ileft = floor(leftbase);
@@ -65,18 +65,40 @@ static void fill_line(
     areasplit(leftbase-ileft, leftslope, &leftfirst, &leftsecond);
     areasplit(rightbase-iright, rightslope, &rightfirst, &rightsecond);
 
-    if(GRID_GET(data->transparent, ileft, height))
+    if(GRID_GET(data->transparent, ileft, height)==cond)
         GRID_SET(data->light, ileft, height, GRID_GET(data->light, ileft, height) + leftfirst*data->attenuation(data, ileft, height));
-    if(GRID_GET(data->transparent, ileft+1, height))
+    if(GRID_GET(data->transparent, ileft+1, height)==cond)
         GRID_SET(data->light, ileft+1, height, GRID_GET(data->light, ileft+1, height) + leftsecond*data->attenuation(data, ileft+1, height));
-    if(GRID_GET(data->transparent, iright, height))
+    if(GRID_GET(data->transparent, iright, height)==cond)
         GRID_SET(data->light, iright, height, GRID_GET(data->light, iright, height) - rightfirst*data->attenuation(data, iright, height));
-    if(GRID_GET(data->transparent, iright+1, height))
+    if(GRID_GET(data->transparent, iright+1, height)==cond)
         GRID_SET(data->light, iright+1, height, GRID_GET(data->light, iright+1, height) - rightsecond*data->attenuation(data, iright+1, height));
 
     for(int i = ileft+2;i<=iright+1;++i)
-        if(GRID_GET(data->transparent, i, height))
+        if(GRID_GET(data->transparent, i, height)==cond)
             GRID_SET(data->light, i, height, GRID_GET(data->light, i, height) + data->attenuation(data, i, height));
+}
+
+static void set_line(
+    shadowcast_data *data, int height, double leftbase,
+    double leftslope, double rightbase, double rightslope, double cond
+)
+{
+    int ileft = floor(leftbase);
+    int iright = floor(rightbase);
+
+    double leftfirst, leftsecond, rightfirst, rightsecond;
+    areasplit(leftbase-ileft, leftslope, &leftfirst, &leftsecond);
+    areasplit(rightbase-iright, rightslope, &rightfirst, &rightsecond);
+
+    if(GRID_GET(data->transparent, ileft, height)==cond)
+        GRID_SET(data->light, ileft, height, leftfirst*data->attenuation(data, ileft, height)>0?1.0:0.0);
+    if(GRID_GET(data->transparent, ileft+1, height)==cond)
+        GRID_SET(data->light, ileft+1, height, leftsecond*data->attenuation(data, ileft+1, height)>0?1.0:0.0);
+
+    for(int i = ileft+2;i<=iright;++i)
+        if(GRID_GET(data->transparent, i, height)==cond)
+            GRID_SET(data->light, i, height, 1.0);
 }
 
 static void trace_cone(
@@ -94,7 +116,9 @@ static void trace_cone(
     double rightedge;
 
     int i = ileft;
-
+    
+    set_line(data, height, leftbase, leftslope, rightbase, rightslope, 0.0);
+    
     while(i<=iright) {
         while(i<=iright && !GRID_GET(data->transparent, i, height)) { leftedge = ++i; }
         rightedge = leftedge;
@@ -107,9 +131,8 @@ static void trace_cone(
 
         if(newleftslope < newrightslope)
         {
-            fill_line(data, height, leftedge, newleftslope, dmin(rightedge, rightbase), rightfillslope);
-            if(newleftslope < newrightslope)
-                trace_cone(data, height+1, max_height, leftedge+newleftslope, newleftslope, newrightbase, newrightslope);
+            fill_line(data, height, leftedge, newleftslope, dmin(rightedge, rightbase), rightfillslope, 1.0);
+            trace_cone(data, height+1, max_height, leftedge+newleftslope, newleftslope, newrightbase, newrightslope);
         }
     }
 }
