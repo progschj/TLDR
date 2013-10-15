@@ -188,8 +188,8 @@ void shadowcast_impl(
     data.x0 = x0; data.y0 = y0; data.signx = 1; data.signy = 1; data.swapped = 0;
     calc_fov_octant(&data);
 
-    if(grid_get(transparent, x0, y0))
-        grid_set(light, x0, y0, backup[0]+data.attenuation(&data, floor(x0), floor(y0)));
+    
+    grid_set(light, x0, y0, 1.0);
     if(grid_get(transparent, x0+1, y0))
         grid_set(light, x0+1, y0, backup[1]+data.attenuation(&data, floor(x0)+1, floor(y0)));
     if(grid_get(transparent, x0-1, y0))
