@@ -34,7 +34,7 @@ double binary_grid_cost_function(int x0, int y0, int x1, int y1, void *userdata)
 
 void dijkstra_distance_target(grid *distances, grid *target, const pos *targets, int count, int neighbors, cost_function_t cost_function, void *userdata){
     grid_fill(distances, distances->x0, distances->y0, distances->width, distances->height, DBL_MAX);
-    grid_fill(target, target->x0, target->y0, target->width, target->height, -1);
+    if(target != NULL) grid_fill(target, target->x0, target->y0, target->width, target->height, -1);
 
     queue open_set = queue_create(sizeof(pos));
 
